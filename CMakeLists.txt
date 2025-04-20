@@ -157,6 +157,7 @@ endif()
 add_subdirectory(src/core)
 if (OJPH_BUILD_EXECUTABLES)
   add_subdirectory(src/apps)
+  add_subdirectory(src/apps/test_htj2k_processor) # Added new project
 endif()
 
 ################################################################################################
