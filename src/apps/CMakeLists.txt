@@ -1,7 +1,7 @@
 
 # Add tiff library 
 ############################################################
-if( OJPH_ENABLE_TIFF_SUPPORT AND (NOT EMSCRIPTEN))
+if( OJPH_ENABLE_TIFF_SUPPORT)
 
   FIND_PACKAGE( TIFF )
 
