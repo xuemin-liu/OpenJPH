@@ -21,7 +21,7 @@ message(STATUS "CPU Architecture is ${OJPH_TARGET_ARCH}")
 
 ## options
 option(BUILD_SHARED_LIBS "Shared Libraries" ON)
-option(OJPH_ENABLE_TIFF_SUPPORT "Enables input and output support for TIFF files" ON)
+option(OJPH_ENABLE_TIFF_SUPPORT "Enables input and output support for TIFF files" OFF)
 option(OJPH_BUILD_TESTS "Enables building test code" OFF)
 option(OJPH_BUILD_EXECUTABLES "Enables building command line executables" ON)
 option(OJPH_BUILD_STREAM_EXPAND "Enables building ojph_stream_expand executable" OFF)
