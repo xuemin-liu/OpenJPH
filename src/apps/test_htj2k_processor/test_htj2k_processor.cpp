@@ -11,6 +11,321 @@
 #include <functional>
 #include "Htj2kProcessor.h"
 
+/**
+ * @brief Reads a BMP file, compresses it using HTJ2K, and saves the compressed data to a file
+ *
+ * @param bmp_filename Path to input BMP file
+ * @param output_filename Path to output compressed file (typically .j2k or .jph)
+ * @param params Compression parameters
+ * @return bool True if successful, false otherwise
+ */
+bool compressBmpToHtj2k(const std::string& bmp_filename, const std::string& output_filename,
+    const Htj2kProcessor::CompressionParams& params = Htj2kProcessor::CompressionParams()) {
+    try {
+        // Open the BMP file
+        std::ifstream bmp_file(bmp_filename, std::ios::binary);
+        if (!bmp_file) {
+            std::cerr << "Failed to open BMP file: " << bmp_filename << std::endl;
+            return false;
+        }
+
+        // Read BMP header (14 bytes)
+        uint8_t header[14];
+        bmp_file.read(reinterpret_cast<char*>(header), 14);
+
+        // Check BMP signature (first 2 bytes should be 'BM')
+        if (header[0] != 'B' || header[1] != 'M') {
+            std::cerr << "Not a valid BMP file: " << bmp_filename << std::endl;
+            return false;
+        }
+
+        // Read DIB header size (first 4 bytes of DIB header)
+        uint32_t dib_size;
+        bmp_file.read(reinterpret_cast<char*>(&dib_size), 4);
+
+        // Read rest of DIB header
+        std::vector<uint8_t> dib_header(dib_size - 4);
+        bmp_file.read(reinterpret_cast<char*>(dib_header.data()), dib_size - 4);
+
+        // Extract image dimensions and bit depth from DIB header
+        // These offsets are for BITMAPINFOHEADER, adjust if using a different format
+        int32_t width = *reinterpret_cast<int32_t*>(&dib_header[0]);
+        int32_t height = *reinterpret_cast<int32_t*>(&dib_header[4]);
+        uint16_t bit_depth = *reinterpret_cast<uint16_t*>(&dib_header[10]);
+        uint32_t compression = *reinterpret_cast<uint32_t*>(&dib_header[12]);
+
+        // We only support uncompressed BMPs
+        if (compression != 0) {
+            std::cerr << "Compressed BMP files are not supported" << std::endl;
+            return false;
+        }
+
+        // Handle negative height (top-down BMP)
+        bool flip_vertically = false;
+        if (height < 0) {
+            height = -height;
+            flip_vertically = true;
+        }
+
+        // Determine number of components based on bit depth
+        int components;
+        if (bit_depth == 24) {
+            components = 3;  // BGR
+        }
+        else if (bit_depth == 32) {
+            components = 4;  // BGRA
+        }
+        else if (bit_depth == 8) {
+            components = 1;  // Grayscale or palette
+        }
+        else {
+            std::cerr << "Unsupported BMP bit depth: " << bit_depth << std::endl;
+            return false;
+        }
+
+        // Calculate row stride (BMP rows are 4-byte aligned)
+        int row_stride = ((width * (bit_depth / 8)) + 3) & ~3;
+
+        // Skip to pixel data (specified in header offset)
+        uint32_t pixel_data_offset = *reinterpret_cast<uint32_t*>(&header[10]);
+        bmp_file.seekg(pixel_data_offset, std::ios::beg);
+
+        // Read the entire pixel data
+        std::vector<uint8_t> bmp_data(row_stride * height);
+        bmp_file.read(reinterpret_cast<char*>(bmp_data.data()), bmp_data.size());
+
+        // Check if read was successful
+        if (!bmp_file) {
+            std::cerr << "Failed to read complete BMP data" << std::endl;
+            return false;
+        }
+
+        // Convert BMP data to RGB/RGBA format (BMP uses BGR/BGRA)
+        std::vector<uint8_t> image_data(width * height * components);
+
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                // Calculate source and destination positions
+                int src_row = flip_vertically ? y : (height - 1 - y);  // BMPs are stored bottom-up unless height is negative
+                int src_pos = src_row * row_stride + x * (bit_depth / 8);
+                int dst_pos = (y * width + x) * components;
+
+                if (bit_depth == 24) {
+                    // BGR -> RGB
+                    image_data[dst_pos + 0] = bmp_data[src_pos + 2];  // R
+                    image_data[dst_pos + 1] = bmp_data[src_pos + 1];  // G
+                    image_data[dst_pos + 2] = bmp_data[src_pos + 0];  // B
+                }
+                else if (bit_depth == 32) {
+                    // BGRA -> RGBA
+                    image_data[dst_pos + 0] = bmp_data[src_pos + 2];  // R
+                    image_data[dst_pos + 1] = bmp_data[src_pos + 1];  // G
+                    image_data[dst_pos + 2] = bmp_data[src_pos + 0];  // B
+                    image_data[dst_pos + 3] = bmp_data[src_pos + 3];  // A
+                }
+                else if (bit_depth == 8) {
+                    // Grayscale (or palette, but we treat it as grayscale)
+                    image_data[dst_pos] = bmp_data[src_pos];
+                }
+            }
+        }
+
+        // Initialize the HTJ2K processor
+        Htj2kProcessor processor;
+
+        // Compress directly to file
+        bool success = processor.compressToFile(
+            image_data.data(), width, height, components, 8, output_filename, params);
+
+        if (!success) {
+            std::cerr << "Failed to compress image to file: " << output_filename << std::endl;
+            return false;
+        }
+
+        // Calculate compression ratio
+        size_t input_size = bmp_data.size();
+        size_t output_size = std::filesystem::file_size(output_filename);
+        double ratio = static_cast<double>(input_size) / static_cast<double>(output_size);
+
+        std::cout << "Successfully compressed " << bmp_filename << " to " << output_filename << std::endl;
+        std::cout << "Dimensions: " << width << "x" << height << ", Components: " << components << std::endl;
+        std::cout << "Compression ratio: " << std::fixed << std::setprecision(2) << ratio << ":1 ("
+            << input_size << " bytes -> " << output_size << " bytes)" << std::endl;
+
+        return true;
+    }
+    catch (const std::exception& e) {
+        std::cerr << "Exception during BMP compression: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+/**
+ * @brief Reads a HTJ2K/JPEG 2000 file and decompresses it to raw image data
+ *
+ * @param input_filename Path to the input HTJ2K/JPEG 2000 file
+ * @param output_filename Optional path to save the decompressed data as BMP file (if empty, no file is saved)
+ * @param resilient Whether to enable resilient decoding mode for corrupted files
+ * @param reduce_level Resolution reduction level (0 = full resolution, 1 = half size, etc.)
+ * @return std::vector<uint8_t> Raw decompressed pixel data
+ */
+std::vector<uint8_t> decompressJ2KFile(const std::string& input_filename,
+    const std::string& output_filename = "",
+    bool resilient = false, int reduce_level = 0) {
+    try {
+        // Check if input file exists
+        if (!std::filesystem::exists(input_filename)) {
+            throw std::runtime_error("Input file does not exist: " + input_filename);
+        }
+
+        // Initialize the processor
+        Htj2kProcessor processor;
+
+        // Output parameters to be filled by decompression
+        int width = 0, height = 0, components = 0, bits_per_sample = 0;
+
+        // Decompress the file
+        std::vector<uint8_t> image_data = processor.decompressFromFile(
+            input_filename, width, height, components, bits_per_sample, resilient, reduce_level);
+
+        // Print image information
+        std::cout << "Successfully decompressed " << input_filename << std::endl;
+        std::cout << "Dimensions: " << width << "x" << height
+            << ", Components: " << components
+            << ", Bits per sample: " << bits_per_sample << std::endl;
+
+        // If output filename is specified, save as BMP
+        if (!output_filename.empty()) {
+            // Open output file
+            std::ofstream bmp_file(output_filename, std::ios::binary);
+            if (!bmp_file) {
+                throw std::runtime_error("Failed to create output file: " + output_filename);
+            }
+
+            // Calculate BMP pixel data size with row padding (rows must be multiple of 4 bytes)
+            int bytes_per_pixel = (components == 1) ? 1 : ((components == 3) ? 3 : 4);
+            int row_stride = ((width * bytes_per_pixel) + 3) & ~3; // Align to 4 bytes
+            int pixel_data_size = row_stride * height;
+
+            // BMP header size
+            int header_size = 14;             // File header
+            int info_header_size = 40;        // BITMAPINFOHEADER
+            int bmp_header_size = header_size + info_header_size;
+            int file_size = bmp_header_size + pixel_data_size;
+
+            // Prepare BMP file header (14 bytes)
+            uint8_t bmp_header[14] = {
+                'B', 'M',                                      // Signature
+                static_cast<uint8_t>(file_size & 0xFF),        // File size (bytes 0-3)
+                static_cast<uint8_t>((file_size >> 8) & 0xFF),
+                static_cast<uint8_t>((file_size >> 16) & 0xFF),
+                static_cast<uint8_t>((file_size >> 24) & 0xFF),
+                0, 0, 0, 0,                                    // Reserved
+                static_cast<uint8_t>(bmp_header_size & 0xFF),  // Pixel data offset (bytes 10-13)
+                static_cast<uint8_t>((bmp_header_size >> 8) & 0xFF),
+                static_cast<uint8_t>((bmp_header_size >> 16) & 0xFF),
+                static_cast<uint8_t>((bmp_header_size >> 24) & 0xFF)
+            };
+
+            // Write BMP file header
+            bmp_file.write(reinterpret_cast<const char*>(bmp_header), 14);
+
+            // Prepare BMP info header (BITMAPINFOHEADER, 40 bytes)
+            uint8_t info_header[40] = { 0 };
+
+            // Header size
+            info_header[0] = info_header_size;
+
+            // Width and height
+            *reinterpret_cast<int32_t*>(&info_header[4]) = width;
+            *reinterpret_cast<int32_t*>(&info_header[8]) = height; // Negative for top-down BMP
+
+            // Planes (always 1)
+            info_header[12] = 1;
+
+            // Bits per pixel
+            info_header[14] = (components == 1) ? 8 : ((components == 3) ? 24 : 32);
+
+            // Compression method (0 = none)
+            // info_header[16-19] already initialized to 0
+
+            // Image size (can be 0 for uncompressed)
+            *reinterpret_cast<uint32_t*>(&info_header[20]) = pixel_data_size;
+
+            // Write BMP info header
+            bmp_file.write(reinterpret_cast<const char*>(info_header), 40);
+
+            // Convert from raw pixel data format to BMP pixel data format
+            std::vector<uint8_t> bmp_data(pixel_data_size);
+
+            // Determine if we're dealing with 8-bit or 16-bit samples
+            bool is_16bit = (bits_per_sample > 8);
+
+            // Copy and convert data
+            for (int y = 0; y < height; y++) {
+                for (int x = 0; x < width; x++) {
+                    int src_idx = (y * width + x) * components;
+                    int dst_idx = (height - 1 - y) * row_stride + x * bytes_per_pixel; // BMP is bottom-up
+
+                    if (is_16bit) {
+                        // Convert 16-bit samples to 8-bit for BMP
+                        const uint16_t* src_data = reinterpret_cast<const uint16_t*>(image_data.data());
+
+                        if (components == 1) {
+                            // Grayscale
+                            bmp_data[dst_idx] = static_cast<uint8_t>(src_data[src_idx] >> (bits_per_sample - 8));
+                        }
+                        else if (components >= 3) {
+                            // RGB(A): Note HTJ2K uses RGB, BMP uses BGR
+                            bmp_data[dst_idx + 2] = static_cast<uint8_t>(src_data[src_idx] >> (bits_per_sample - 8));     // R->B
+                            bmp_data[dst_idx + 1] = static_cast<uint8_t>(src_data[src_idx + 1] >> (bits_per_sample - 8)); // G->G
+                            bmp_data[dst_idx] = static_cast<uint8_t>(src_data[src_idx + 2] >> (bits_per_sample - 8));     // B->R
+
+                            if (components >= 4) {
+                                bmp_data[dst_idx + 3] = static_cast<uint8_t>(src_data[src_idx + 3] >> (bits_per_sample - 8)); // Alpha
+                            }
+                        }
+                    }
+                    else {
+                        // 8-bit samples
+                        if (components == 1) {
+                            // Grayscale
+                            bmp_data[dst_idx] = image_data[src_idx];
+                        }
+                        else if (components >= 3) {
+                            // RGB(A): Note HTJ2K uses RGB, BMP uses BGR
+                            bmp_data[dst_idx + 2] = image_data[src_idx];     // R->B
+                            bmp_data[dst_idx + 1] = image_data[src_idx + 1]; // G->G
+                            bmp_data[dst_idx] = image_data[src_idx + 2];     // B->R
+
+                            if (components >= 4) {
+                                bmp_data[dst_idx + 3] = image_data[src_idx + 3]; // Alpha
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Write pixel data
+            bmp_file.write(reinterpret_cast<const char*>(bmp_data.data()), pixel_data_size);
+            bmp_file.close();
+
+            if (bmp_file.good()) {
+                std::cout << "Decompressed image saved to " << output_filename << std::endl;
+            }
+            else {
+                std::cerr << "Error writing BMP file" << std::endl;
+            }
+        }
+
+        return image_data;
+    }
+    catch (const std::exception& e) {
+        std::cerr << "Error decompressing file: " << e.what() << std::endl;
+        return std::vector<uint8_t>();
+    }
+}
+
 // Utility function for colored output
 void printResult(const std::string& testName, bool success) {
     std::cout << testName << ": " << (success ? "PASSED" : "FAILED") << std::endl;
@@ -392,7 +707,56 @@ int main() {
     
     int passCount = 0;
     int totalTests = 0;
-    
+
+    // Test 0
+    {
+        // Create test directory
+        std::string test_output_dir = "c:\\temp\\htj2ktests";
+        std::filesystem::create_directories(test_output_dir);
+        std::string input_bmp = "c:\\temp\\test.bmp";
+        std::string compressed_j2k = test_output_dir + "\\compressed.j2k";
+        std::string decompressed_bmp = test_output_dir + "\\decompressed.bmp";
+
+		std::filesystem::remove(compressed_j2k);
+		std::filesystem::remove(decompressed_bmp);
+
+        // Setup compression parameters
+        Htj2kProcessor::CompressionParams params;
+        params.lossless = true;
+        params.color_transform = true; // Apply color transform for RGB images
+
+        std::cout << "\n------ Running BMP to J2K to BMP Round Trip Test ------" << std::endl;
+        auto start = std::chrono::high_resolution_clock::now();
+
+        // Step 1: Compress BMP to J2K
+        bool compress_success = compressBmpToHtj2k(input_bmp, compressed_j2k, params);
+        if (!compress_success) {
+            std::cerr << "Compression failed." << std::endl;
+            return 1;
+        }
+
+        // Step 2: Decompress J2K back to BMP
+        std::vector<uint8_t> decompressed_data = decompressJ2KFile(
+            compressed_j2k, decompressed_bmp, false, 0);
+
+        if (decompressed_data.empty()) {
+            std::cerr << "Decompression failed." << std::endl;
+            return 1;
+        }
+
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed = end - start;
+
+        // Report success and timing
+        std::cout << "Round trip test completed in "
+            << std::fixed << std::setprecision(3) << elapsed.count() << " seconds" << std::endl;
+        std::cout << "Original: " << input_bmp << std::endl;
+        std::cout << "Compressed: " << compressed_j2k << std::endl;
+        std::cout << "Decompressed: " << decompressed_bmp << std::endl;
+
+        // Continue with all other tests
+    }
+     
     // Test 1: Lossless compression with 8-bit RGB image
     totalTests++;
     {
@@ -401,7 +765,7 @@ int main() {
         params.color_transform = true;
         
         bool passed = runTest("Lossless 8-bit RGB", [&]() {
-            return testMemoryRoundTrip(256, 256, 3, 8, params, 0.05);
+            return testMemoryRoundTrip(256, 256, 3, 8, params);
         });
         
         if (passed) passCount++;
