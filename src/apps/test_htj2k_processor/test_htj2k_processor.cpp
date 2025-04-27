@@ -130,11 +130,8 @@ bool compressBmpToHtj2k(const std::string& bmp_filename, const std::string& outp
             }
         }
 
-        // Initialize the HTJ2K processor
-        Htj2kProcessor processor;
-
         // Compress directly to file
-        bool success = processor.compressToFile(
+        bool success = Htj2kProcessor::compressToFile(
             image_data.data(), width, height, components, 8, output_filename, params);
 
         if (!success) {
@@ -178,14 +175,11 @@ std::vector<uint8_t> decompressJ2KFile(const std::string& input_filename,
             throw std::runtime_error("Input file does not exist: " + input_filename);
         }
 
-        // Initialize the processor
-        Htj2kProcessor processor;
-
         // Output parameters to be filled by decompression
         int width = 0, height = 0, components = 0, bits_per_sample = 0;
 
         // Decompress the file
-        std::vector<uint8_t> image_data = processor.decompressFromFile(
+        std::vector<uint8_t> image_data = Htj2kProcessor::decompressFromFile(
             input_filename, width, height, components, bits_per_sample, resilient, reduce_level);
 
         // Print image information
@@ -443,11 +437,8 @@ bool testMemoryRoundTrip(int width, int height, int components, int bits_per_sam
         // Create test image
         std::vector<uint8_t> original_image = createTestImage(width, height, components, bits_per_sample);
         
-        // Initialize the processor
-        Htj2kProcessor processor;
-        
         // Compress the image
-        std::vector<uint8_t> compressed = processor.compress(
+        std::vector<uint8_t> compressed = Htj2kProcessor::compress(
             original_image.data(), width, height, components, bits_per_sample, params);
         
         // Check compressed data
@@ -466,7 +457,7 @@ bool testMemoryRoundTrip(int width, int height, int components, int bits_per_sam
         
         // Decompress the image
         int out_width = 0, out_height = 0, out_components = 0, out_bits = 0;
-        std::vector<uint8_t> decompressed = processor.decompress(
+        std::vector<uint8_t> decompressed = Htj2kProcessor::decompress(
             compressed.data(), compressed.size(), 
             out_width, out_height, out_components, out_bits);
         
@@ -502,11 +493,8 @@ bool testFileRoundTrip(int width, int height, int components, int bits_per_sampl
         // Create test image
         std::vector<uint8_t> original_image = createTestImage(width, height, components, bits_per_sample);
         
-        // Initialize the processor
-        Htj2kProcessor processor;
-        
         // Compress to file
-        bool compress_success = processor.compressToFile(
+        bool compress_success = Htj2kProcessor::compressToFile(
             original_image.data(), width, height, components, bits_per_sample, test_file, params);
         
         if (!compress_success) {
@@ -529,7 +517,7 @@ bool testFileRoundTrip(int width, int height, int components, int bits_per_sampl
         
         // Decompress from file
         int out_width = 0, out_height = 0, out_components = 0, out_bits = 0;
-        std::vector<uint8_t> decompressed = processor.decompressFromFile(
+        std::vector<uint8_t> decompressed = Htj2kProcessor::decompressFromFile(
             test_file, out_width, out_height, out_components, out_bits);
         
         // Check dimensions
@@ -562,19 +550,18 @@ bool testResolutionReduction() {
         int width = 512, height = 512, components = 3, bits_per_sample = 8;
         std::vector<uint8_t> original_image = createTestImage(width, height, components, bits_per_sample);
         
-        Htj2kProcessor processor;
         Htj2kProcessor::CompressionParams params;
         params.lossless = true;
         params.num_decompositions = 3; // Need enough decompositions for resolution reduction
         
         // Compress the image
-        std::vector<uint8_t> compressed = processor.compress(
+        std::vector<uint8_t> compressed = Htj2kProcessor::compress(
             original_image.data(), width, height, components, bits_per_sample, params);
         
         // Decompress with resolution reduction
         int reduce_level = 1; // Reduce resolution by factor of 2
         int out_width = 0, out_height = 0, out_components = 0, out_bits = 0;
-        std::vector<uint8_t> decompressed = processor.decompress(
+        std::vector<uint8_t> decompressed = Htj2kProcessor::decompress(
             compressed.data(), compressed.size(), 
             out_width, out_height, out_components, out_bits, false, reduce_level);
         
@@ -620,12 +607,11 @@ bool testResilienceToCorruption() {
         int width = 256, height = 256, components = 3, bits_per_sample = 8;
         std::vector<uint8_t> original_image = createTestImage(width, height, components, bits_per_sample);
         
-        Htj2kProcessor processor;
         Htj2kProcessor::CompressionParams params;
         params.lossless = true;
         
         // Compress the image
-        std::vector<uint8_t> compressed = processor.compress(
+        std::vector<uint8_t> compressed = Htj2kProcessor::compress(
             original_image.data(), width, height, components, bits_per_sample, params);
         
         // Backup the original compressed data
@@ -649,7 +635,7 @@ bool testResilienceToCorruption() {
         std::vector<uint8_t> decompressed;
         
         try {
-            decompressed = processor.decompress(
+            decompressed = Htj2kProcessor::decompress(
                 compressed.data(), compressed.size(), 
                 out_width, out_height, out_components, out_bits, true); // true = resilient
         } catch (const std::exception& e) {
