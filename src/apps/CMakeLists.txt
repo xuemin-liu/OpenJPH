@@ -24,7 +24,6 @@ endif()
 ## Build executables
 add_subdirectory(ojph_expand)
 add_subdirectory(ojph_compress)
-add_subdirectory(test_htj2k_processor) # Added new project
 if (OJPH_BUILD_STREAM_EXPAND)
   add_subdirectory(ojph_stream_expand)
 endif()
