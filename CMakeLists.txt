@@ -36,7 +36,7 @@ if (CMAKE_OSX_ARCHITECTURES)
 endif()
 
 ## options
-option(BUILD_SHARED_LIBS "Shared Libraries" ON)
+option(BUILD_SHARED_LIBS "Shared Libraries" OFF)
 option(OJPH_ENABLE_TIFF_SUPPORT "Enables input and output support for TIFF files" OFF)
 option(OJPH_BUILD_TESTS "Enables building test code" OFF)
 option(OJPH_BUILD_EXECUTABLES "Enables building command line executables" ON)
@@ -51,6 +51,29 @@ option(OJPH_DISABLE_AVX "Disables the use of AVX SIMD instructions and associate
 option(OJPH_DISABLE_AVX2 "Disables the use of AVX2 SIMD instructions and associated files" OFF)
 option(OJPH_DISABLE_AVX512 "Disables the use of AVX512 SIMD instructions and associated files" OFF)
 option(OJPH_DISABLE_NEON "Disables the use of NEON SIMD instructions and associated files" OFF)
+
+## Configure MSVC runtime library for static linking
+if(MSVC)
+    # Use static runtime library
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    
+    # Also set the flags explicitly to ensure they take effect
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MT")
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd")
+    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /MT")
+    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /MTd")
+    
+    # Remove any /MD or /MDd flags that might be set by default
+    foreach(flag_var CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE 
+                     CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO
+                     CMAKE_C_FLAGS CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE
+                     CMAKE_C_FLAGS_MINSIZEREL CMAKE_C_FLAGS_RELWITHDEBINFO)
+        string(REPLACE "/MD" "/MT" ${flag_var} "${${flag_var}}")
+        string(REPLACE "/MDd" "/MTd" ${flag_var} "${${flag_var}}")
+    endforeach()
+    
+    message(STATUS "Configured MSVC runtime for static linking (/MT for Release, /MTd for Debug)")
+endif()
 
 ## options that are being deprecated
 if (DEFINED OJPH_DISABLE_INTEL_SIMD)
