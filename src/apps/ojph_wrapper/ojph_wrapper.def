@@ -1,0 +1,9 @@
+EXPORTS
+; C API functions
+ojph_wrapper_get_version
+ojph_wrapper_get_last_error
+htj2k_compress
+htj2k_decompress
+
+; Note: C++ class Htj2kProcessor methods are exported automatically
+; via __declspec(dllexport) and don't need to be listed here

@@ -10,6 +10,7 @@ if %ERRORLEVEL% EQU 0 (
     echo.
     echo Built files (Static Library):
     echo - Library: build\src\core\Release\openjph.0.21.lib
+    echo - Wrapper DLL: build\src\apps\ojph_wrapper\Release\ojph_wrapper.dll
     echo - Compress: build\src\apps\ojph_compress\Release\ojph_compress.exe
     echo - Expand: build\src\apps\ojph_expand\Release\ojph_expand.exe
     echo.

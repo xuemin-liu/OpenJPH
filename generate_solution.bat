@@ -49,7 +49,7 @@ echo.
 echo Step 2: Generating new CMake configuration and Visual Studio solution...
 echo ----------------------------------------------------------------------
 
-:::: Generate new CMake configuration with our specific settings
+:: Generate new CMake configuration with our specific settings
 cmake .. -G "Visual Studio 17 2022" -A x64 -DBUILD_SHARED_LIBS=OFF
 
 :: Check if solution file was created successfully
@@ -74,18 +74,20 @@ if exist "openjph.sln" (
     echo 2. Use build_release.bat or build_debug.bat to compile
     echo 3. Build directly with: cmake --build . --config Release
     echo.
-) else (
-    echo.
-    echo ===============================================
-    echo FAILED: Visual Studio solution not created!
-    echo ===============================================
-    echo.
-    echo Please check the CMake output above for errors.
-    echo Common issues:
-    echo - Visual Studio 2022 not installed
-    echo - CMake not found in PATH
-    echo - Invalid CMakeLists.txt syntax
-    echo.
+    goto :end
 )
 
+echo.
+echo ===============================================
+echo FAILED: Visual Studio solution not created!
+echo ===============================================
+echo.
+echo Please check the CMake output above for errors.
+echo Common issues:
+echo - Visual Studio 2022 not installed
+echo - CMake not found in PATH
+echo - Invalid CMakeLists.txt syntax
+echo.
+
+:end
 pause
