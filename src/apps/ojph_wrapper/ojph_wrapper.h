@@ -34,10 +34,10 @@ OJPH_WRAPPER_API int htj2k_compress(
 );
 
 OJPH_WRAPPER_API int htj2k_decompress(
-    const unsigned char* compressed_data, int compressed_size,
+    const unsigned char* compressed_data, size_t compressed_size,
+    unsigned char* decompressed_data, size_t* decompressed_size,
     int* width, int* height, int* components, int* bits_per_sample,
-    int resilient, int reduce_level,
-    unsigned char** image_data
+    int resilient, int reduce_level
 );
 
 // Error handling

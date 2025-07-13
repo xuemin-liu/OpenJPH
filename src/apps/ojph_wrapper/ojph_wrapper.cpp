@@ -80,15 +80,16 @@ OJPH_WRAPPER_API int htj2k_compress(
 }
 
 OJPH_WRAPPER_API int htj2k_decompress(
-    const unsigned char* compressed_data, int compressed_size,
+    const unsigned char* compressed_data, size_t compressed_size,
+    unsigned char* decompressed_data, size_t* decompressed_size,
     int* width, int* height, int* components, int* bits_per_sample,
-    int resilient, int reduce_level,
-    unsigned char** image_data)
+    int resilient, int reduce_level)
 {
     try {
         last_error.clear();
         
-        if (!compressed_data || !width || !height || !components || !bits_per_sample || !image_data) {
+        if (!compressed_data || !decompressed_data || !decompressed_size || 
+            !width || !height || !components || !bits_per_sample) {
             last_error = "Invalid parameters: null pointers";
             return -1;
         }
@@ -98,22 +99,18 @@ OJPH_WRAPPER_API int htj2k_decompress(
             return -1;
         }
         
-        // Call the C++ decompress method
-        std::vector<uint8_t> result = Htj2kProcessor::decompress(
-            compressed_data, static_cast<size_t>(compressed_size),
+        // Call the C++ decompress method with pre-allocated buffer
+        bool success = Htj2kProcessor::decompress(
+            compressed_data, compressed_size,
+            decompressed_data, *decompressed_size,
             *width, *height, *components, *bits_per_sample,
             resilient != 0, reduce_level);
         
-        // Allocate memory for the result and copy data
-        size_t image_size = result.size();
-        *image_data = static_cast<unsigned char*>(malloc(image_size));
-        
-        if (!*image_data) {
-            last_error = "Failed to allocate memory for image data";
+        if (!success) {
+            last_error = "Decompression failed";
             return -1;
         }
         
-        memcpy(*image_data, result.data(), image_size);
         return 0; // Success
         
     } catch (const std::exception& e) {
