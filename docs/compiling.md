@@ -14,12 +14,52 @@ You may need to install libtiff; then,
 
 ## For Windows ##
 
-Compilation depends on libtiff. A pre-compiled library with all the library features for Windows is not available; I am using [this](https://github.com/aous72/OpenJPH/files/14060335/tiff.zip), but I think I have only the basic library. 
+OpenJPH provides pre-configured batch scripts for easy Windows builds with static runtime linking.
 
-    cd build
-    cmake .. -G "Visual Studio 17 2022 Win64" -DCMAKE_PREFIX_PATH=<tiff library path>
+### Quick Start - Windows Batch Scripts ###
 
-`cmake` supports other visual studio versions.  This command generates a solution in the build folder, which can be build using visual studio.
+**Note**: The scripts automatically create the required build directories (`build_x64` and `build_x86`) if they don't exist.
+
+For 64-bit builds:
+```bash
+# Generate Visual Studio solution (64-bit)
+.\generate_solution_x64.bat
+
+# Build Release or Debug
+.\build_release_x64.bat
+.\build_debug_x64.bat
+```
+
+For 32-bit builds:
+```bash
+# Generate Visual Studio solution (32-bit)
+.\generate_solution_x86.bat
+
+# Build Release or Debug
+.\build_release_x86.bat
+.\build_debug_x86.bat
+```
+
+To build all architectures and configurations:
+```bash
+.\build_all.bat
+```
+
+This creates:
+- **x64 libraries**: `build_x64\src\core\Release\openjph.0.21.lib` (and Debug)
+- **x86 libraries**: `build_x86\src\core\Release\openjph.0.21.lib` (and Debug)
+- **Wrapper DLLs**: `build_x64\src\apps\ojph_wrapper\Release\ojph_wrapper.dll` (and x86)
+
+The builds use static runtime linking (/MT for Release, /MTd for Debug) and include SIMD optimizations.
+
+### Manual CMake Approach ###
+
+Alternatively, you can use CMake directly:
+
+    cd build_x64
+    cmake .. -G "Visual Studio 17 2022" -A x64
+
+`cmake` supports other visual studio versions.  This command generates a solution in the build folder, which can be built using visual studio.
 
 To compile from the command line, use
 
